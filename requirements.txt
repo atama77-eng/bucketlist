@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+sqlmodel
+jinja2
+python-multipart
+python-dotenv
+requests
+pillow
+anthropic
+psycopg2-binary

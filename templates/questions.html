@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+
+<a href="/" class="text-sm text-stone-500">← 戻る</a>
+
+<p class="mt-4 text-xs font-medium tracking-wide text-stone-400">やりたいこと</p>
+<h1 class="mt-1 text-xl font-bold leading-snug">{{ wish.title }}</h1>
+
+<p class="mt-5 text-sm leading-relaxed text-stone-500">
+  実行できる計画にするために、3つだけ教えてください。
+</p>
+
+<form method="post" action="/wish/{{ wish.id }}/questions" class="mt-6 space-y-6">
+  {% for a in answers %}
+  <div>
+    <label class="block text-sm font-medium leading-relaxed">
+      <span class="mr-1.5 text-stone-400">{{ loop.index }}.</span>{{ a.question }}
+    </label>
+    <textarea name="answer_{{ a.id }}" rows="3"
+              class="mt-2 w-full rounded-2xl border border-stone-300 bg-white p-4 text-base leading-relaxed outline-none focus:border-stone-900">{{ a.answer }}</textarea>
+  </div>
+  {% endfor %}
+
+  <button type="submit"
+          class="w-full rounded-full bg-stone-900 py-4 font-medium text-white">
+    ToDoをつくる
+  </button>
+</form>
+
+{% endblock %}
