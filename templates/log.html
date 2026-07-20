@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+
+<a href="/wish/{{ wish.id }}" class="text-sm text-stone-500">← 戻る</a>
+
+<p class="mt-4 text-xs font-medium tracking-wide text-stone-400">記録</p>
+<h1 class="mt-1 text-xl font-bold leading-snug">{{ wish.title }}</h1>
+
+<div class="mt-6 space-y-5">
+  {% for todo in todos %}
+  <div class="relative border-l-2 pl-5
+              {% if todo.done %}border-emerald-400{% else %}border-stone-200{% endif %}">
+    <span class="absolute -left-[7px] top-1.5 h-3 w-3 rounded-full
+                 {% if todo.done %}bg-emerald-500{% else %}bg-stone-300{% endif %}"></span>
+
+    <p class="text-sm font-medium leading-relaxed {% if not todo.done %}text-stone-400{% endif %}">
+      {{ todo.text }}
+    </p>
+
+    {% if todo.note %}
+    <div class="mt-2 rounded-xl bg-white p-3 text-sm leading-relaxed text-stone-700 border border-stone-200">
+      <p class="whitespace-pre-wrap">{{ todo.note }}</p>
+      <a href="/todo/{{ todo.id }}/note" class="mt-2 inline-block text-xs text-stone-400">編集</a>
+    </div>
+    {% else %}
+    <a href="/todo/{{ todo.id }}/note" class="mt-1 inline-block text-xs text-stone-400">
+      + メモを書く
+    </a>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if achievement %}
+<div class="mt-8 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+  <p class="text-xs font-medium tracking-wide text-amber-600">達成</p>
+  {% if achievement.photo_path %}
+  <img src="{{ achievement.photo_path }}" alt="" class="mt-3 w-full rounded-xl object-cover">
+  {% endif %}
+  {% if achievement.note %}
+  <p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{{ achievement.note }}</p>
+  {% endif %}
+  <p class="mt-3 text-xs text-amber-600">{{ achievement.created_at.strftime("%Y年%m月%d日") }}</p>
+</div>
+{% endif %}
+
+{% endblock %}

@@ -44,6 +44,35 @@ def init_db() -> None:
     import models  # noqa: F401  テーブル定義を読み込ませるために必要
 
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+# 後から models.py に増やした項目を、既存のテーブルにも足すための処理。
+# create_all はテーブルを作りはするが、既存テーブルに列は追加してくれないため。
+# 形式: (テーブル名, 列名, SQLでの型と初期値)
+_LATER_COLUMNS = [
+    ("todo", "note", "VARCHAR DEFAULT ''"),
+]
+
+
+def _add_missing_columns() -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+
+    for table, column, definition in _LATER_COLUMNS:
+        if table not in tables:
+            continue
+        existing = {c["name"] for c in inspector.get_columns(table)}
+        if column in existing:
+            continue
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {definition}"))
+            print(f"[db] {table} テーブルに {column} 列を追加しました")
+        except Exception as e:
+            print(f"[db] {table}.{column} を追加できませんでした: {e}")
 
 
 def get_session():

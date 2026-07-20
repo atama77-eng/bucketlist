@@ -37,6 +37,8 @@ class Todo(SQLModel, table=True):
     text: str
     order_no: int = 0
     done: bool = False
+    # 進めてわかったこと・調べた結果を書き残す欄
+    note: str = ""
 
 
 class Tip(SQLModel, table=True):

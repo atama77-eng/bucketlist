@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+
+<a href="/wish/{{ wish.id }}" class="text-sm text-stone-500">← 戻る</a>
+
+<p class="mt-4 text-xs font-medium tracking-wide text-stone-400">{{ wish.title }}</p>
+<h1 class="mt-1 text-lg font-bold leading-snug">{{ todo.text }}</h1>
+
+<p class="mt-4 text-sm leading-relaxed text-stone-500">
+  調べたこと、わかったこと、次にやることを書き残しておきましょう。
+</p>
+
+<form method="post" action="/todo/{{ todo.id }}/note" class="mt-4">
+  <textarea name="note" rows="12" autofocus
+            placeholder="例：航空券は10月が最安。オーロラは9月下旬〜3月が見頃らしい。"
+            class="w-full rounded-2xl border border-stone-300 bg-white p-4 text-base leading-relaxed outline-none focus:border-stone-900">{{ todo.note }}</textarea>
+
+  <button type="submit"
+          class="mt-4 w-full rounded-full bg-stone-900 py-4 font-medium text-white">
+    保存する
+  </button>
+</form>
+
+{% endblock %}

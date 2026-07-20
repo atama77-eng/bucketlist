@@ -139,6 +139,7 @@ def detail(wish_id: int, request: Request, session: Session = Depends(get_sessio
     tip = random.choice(tips) if tips else None
 
     all_done = bool(todos) and all(t.done for t in todos)
+    has_notes = any(t.note for t in todos)
 
     return templates.TemplateResponse(
         request,
@@ -149,7 +150,50 @@ def detail(wish_id: int, request: Request, session: Session = Depends(get_sessio
             "tip": tip,
             "all_done": all_done,
             "achievement": achievement,
+            "has_notes": has_notes,
         },
+    )
+
+
+# ---------------------------------------------------------------
+# メモ（ToDoを進めてわかったこと）
+# ---------------------------------------------------------------
+
+@app.get("/todo/{todo_id}/note")
+def note_form(todo_id: int, request: Request, session: Session = Depends(get_session)):
+    todo = session.get(Todo, todo_id)
+    wish = session.get(Wish, todo.wish_id)
+    return templates.TemplateResponse(
+        request, "note.html", {"todo": todo, "wish": wish}
+    )
+
+
+@app.post("/todo/{todo_id}/note")
+def note_save(
+    todo_id: int, note: str = Form(""), session: Session = Depends(get_session)
+):
+    todo = session.get(Todo, todo_id)
+    todo.note = note.strip()
+    session.add(todo)
+    session.commit()
+    return RedirectResponse(f"/wish/{todo.wish_id}", status_code=303)
+
+
+@app.get("/wish/{wish_id}/log")
+def log(wish_id: int, request: Request, session: Session = Depends(get_session)):
+    """ToDoと、そこで得たメモを順番に並べた記録画面。"""
+    wish = session.get(Wish, wish_id)
+    todos = session.exec(
+        select(Todo).where(Todo.wish_id == wish_id).order_by(Todo.order_no)
+    ).all()
+    achievement = session.exec(
+        select(Achievement).where(Achievement.wish_id == wish_id)
+    ).first()
+
+    return templates.TemplateResponse(
+        request,
+        "log.html",
+        {"wish": wish, "todos": todos, "achievement": achievement},
     )
 
 
