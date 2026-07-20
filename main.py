@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
+import db as db_module
 import generator
 from db import DATABASE_URL, get_session, init_db
 from generator import generate_plan, generate_questions, suggest_next_steps
@@ -225,13 +226,28 @@ async def suggest_add(
 @app.get("/status")
 def status(request: Request):
     """設定がきちんと反映されているかを確認する画面。"""
+    import os
+
     api = generator.check_api()
+
+    # 接続先は表示するが、ユーザー名とパスワードは伏せる
+    if DATABASE_URL.startswith("sqlite"):
+        db_kind = "SQLite（ファイル）"
+        db_where = DATABASE_URL.replace("sqlite:///", "")
+    else:
+        db_kind = "Postgres（Neonなど）"
+        db_where = DATABASE_URL.split("@")[-1].split("?")[0]
+
     return templates.TemplateResponse(
         request,
         "status.html",
         {
             "api": api,
-            "db": "Neon / Postgres" if not DATABASE_URL.startswith("sqlite") else "SQLite",
+            "is_vercel": bool(os.getenv("VERCEL")),
+            "db_kind": db_kind,
+            "db_where": db_where,
+            "db_ok": not DATABASE_URL.startswith("sqlite"),
+            "db_error": db_module.INIT_ERROR,
             "blob": bool(BLOB_TOKEN),
             "last_error": generator.LAST_ERROR,
         },

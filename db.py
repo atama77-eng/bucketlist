@@ -39,12 +39,26 @@ else:
     engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
 
 
+# DBの準備で失敗したときの内容。/status 画面で確認できる。
+INIT_ERROR: str | None = None
+
+
 def init_db() -> None:
-    """テーブルがなければ作る。アプリ起動時に1回呼ぶ。"""
+    """テーブルがなければ作る。アプリ起動時に1回呼ぶ。
+
+    ここで例外を外に出すとアプリ全体が起動できず、原因も画面に出せなくなる。
+    そのため失敗しても記録するだけにして、/status で確認できるようにする。
+    """
+    global INIT_ERROR
     import models  # noqa: F401  テーブル定義を読み込ませるために必要
 
-    SQLModel.metadata.create_all(engine)
-    _add_missing_columns()
+    try:
+        SQLModel.metadata.create_all(engine)
+        _add_missing_columns()
+        INIT_ERROR = None
+    except Exception as e:
+        INIT_ERROR = f"{type(e).__name__}: {e}"
+        print(f"[db] データベースに接続できませんでした: {INIT_ERROR}")
 
 
 # 後から models.py に増やした項目を、既存のテーブルにも足すための処理。
