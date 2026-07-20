@@ -65,11 +65,22 @@ def _call_claude(prompt: str) -> str:
     client = Anthropic(api_key=API_KEY)
     message = client.messages.create(
         model=MODEL,
-        max_tokens=2000,
+        max_tokens=4000,
         messages=[{"role": "user", "content": prompt}],
     )
+
+    # 応答は複数のブロックに分かれて返ることがあり、
+    # 先頭が思考(thinking)ブロックの場合もある。テキストだけを取り出す。
+    parts = [
+        block.text
+        for block in message.content
+        if getattr(block, "type", None) == "text" and hasattr(block, "text")
+    ]
+    if not parts:
+        raise ValueError("応答にテキストが含まれていませんでした")
+
     LAST_ERROR = None
-    return message.content[0].text
+    return "\n".join(parts)
 
 
 def _record_error(where: str, e: Exception) -> None:
