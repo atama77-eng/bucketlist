@@ -21,8 +21,14 @@ BLOB_TOKEN = os.getenv("BLOB_READ_WRITE_TOKEN")
 BLOB_API = "https://blob.vercel-storage.com"
 BLOB_API_VERSION = "10"
 
+IS_VERCEL = bool(os.getenv("VERCEL"))
+
 LOCAL_DIR = Path(__file__).parent / "static" / "uploads"
-LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+
+# Vercelはファイルシステムが読み取り専用。
+# ここでフォルダを作ろうとすると起動時に落ちるので、ローカルのときだけ作る。
+if not IS_VERCEL:
+    LOCAL_DIR.mkdir(parents=True, exist_ok=True)
 
 # 長辺をこのピクセル数まで縮小してから保存する（無料枠の節約と表示速度のため）
 MAX_SIDE = 1600
@@ -91,5 +97,15 @@ def save_photo(raw: bytes) -> str | None:
             print(f"[storage] Vercel Blobへの保存に失敗しました: {e}")
             return None
 
-    (LOCAL_DIR / filename).write_bytes(data)
-    return f"/static/uploads/{filename}"
+    if IS_VERCEL:
+        # Vercel上でトークンがないと、保存する場所がない
+        print("[storage] 警告: BLOB_READ_WRITE_TOKEN が未設定のため写真を保存できません")
+        return None
+
+    try:
+        LOCAL_DIR.mkdir(parents=True, exist_ok=True)
+        (LOCAL_DIR / filename).write_bytes(data)
+        return f"/static/uploads/{filename}"
+    except OSError as e:
+        print(f"[storage] 写真を保存できませんでした: {e}")
+        return None

@@ -22,7 +22,12 @@ BASE_DIR = Path(__file__).parent
 init_db()  # テーブルがなければ作る
 
 app = FastAPI()
-app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+# staticフォルダが無い環境で落ちないようにしておく
+STATIC_DIR = BASE_DIR / "static"
+if STATIC_DIR.is_dir():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 

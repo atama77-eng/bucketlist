@@ -1,7 +1,7 @@
 """データベース接続。
 
 ローカルでは SQLite（app.db というファイル）を使う。
-Supabase に切り替えるときは .env の DATABASE_URL を書き換えるだけでよい。
+Neon に切り替えるときは .env の DATABASE_URL を書き換えるだけでよい。
 """
 
 import os
@@ -12,9 +12,19 @@ from sqlmodel import Session, SQLModel, create_engine
 
 load_dotenv()
 
+# Vercel上で動いているかどうか（Vercelが自動で入れる環境変数で判定）
+IS_VERCEL = bool(os.getenv("VERCEL"))
+
 # どこから起動しても同じ app.db を見るように、絶対パスにしておく
 DEFAULT_SQLITE = f"sqlite:///{Path(__file__).parent / 'app.db'}"
 DATABASE_URL = os.getenv("DATABASE_URL") or DEFAULT_SQLITE
+
+if IS_VERCEL and DATABASE_URL.startswith("sqlite"):
+    # Vercelはファイルを書き込めないので、SQLiteのままだと起動時に落ちる。
+    # 環境変数 DATABASE_URL の設定漏れが原因。とりあえず起動はさせる。
+    print("[db] 警告: DATABASE_URL が設定されていません。Neonの接続文字列を登録してください。")
+    print("[db] 一時領域のDBで起動します（データは保存されません）")
+    DATABASE_URL = "sqlite:////tmp/app.db"
 
 # Neon や Supabase の接続文字列は postgres:// で始まることがあるが、
 # SQLAlchemy は postgresql:// を求めるので自動で直す
