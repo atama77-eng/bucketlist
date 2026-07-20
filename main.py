@@ -12,10 +12,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlmodel import Session, select
 
-from db import get_session, init_db
-from generator import generate_plan, generate_questions
+import generator
+from db import DATABASE_URL, get_session, init_db
+from generator import generate_plan, generate_questions, suggest_next_steps
 from models import Achievement, Answer, Tip, Todo, Wish
-from storage import save_photo
+from storage import BLOB_TOKEN, save_photo
 
 BASE_DIR = Path(__file__).parent
 
@@ -177,6 +178,64 @@ def note_save(
     session.add(todo)
     session.commit()
     return RedirectResponse(f"/wish/{todo.wish_id}", status_code=303)
+
+
+@app.get("/wish/{wish_id}/suggest")
+def suggest(wish_id: int, request: Request, session: Session = Depends(get_session)):
+    """メモを読ませて、次の一歩を提案してもらう。"""
+    wish = session.get(Wish, wish_id)
+    todos = session.exec(
+        select(Todo).where(Todo.wish_id == wish_id).order_by(Todo.order_no)
+    ).all()
+    answers = session.exec(select(Answer).where(Answer.wish_id == wish_id)).all()
+
+    suggestions, error = suggest_next_steps(
+        wish.title,
+        [(a.question, a.answer) for a in answers],
+        [{"text": t.text, "done": t.done, "note": t.note} for t in todos],
+    )
+
+    return templates.TemplateResponse(
+        request,
+        "suggest.html",
+        {"wish": wish, "suggestions": suggestions, "error": error},
+    )
+
+
+@app.post("/wish/{wish_id}/suggest")
+async def suggest_add(
+    wish_id: int, request: Request, session: Session = Depends(get_session)
+):
+    """選ばれた提案をToDoリストの末尾に追加する。"""
+    form = await request.form()
+    chosen = form.getlist("chosen")
+
+    last = session.exec(
+        select(Todo).where(Todo.wish_id == wish_id).order_by(Todo.order_no.desc())
+    ).first()
+    next_no = (last.order_no + 1) if last else 0
+
+    for i, text in enumerate(chosen):
+        session.add(Todo(wish_id=wish_id, text=str(text), order_no=next_no + i))
+    session.commit()
+
+    return RedirectResponse(f"/wish/{wish_id}", status_code=303)
+
+
+@app.get("/status")
+def status(request: Request):
+    """設定がきちんと反映されているかを確認する画面。"""
+    api = generator.check_api()
+    return templates.TemplateResponse(
+        request,
+        "status.html",
+        {
+            "api": api,
+            "db": "Neon / Postgres" if not DATABASE_URL.startswith("sqlite") else "SQLite",
+            "blob": bool(BLOB_TOKEN),
+            "last_error": generator.LAST_ERROR,
+        },
+    )
 
 
 @app.get("/wish/{wish_id}/log")

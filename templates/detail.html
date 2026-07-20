@@ -44,10 +44,18 @@
 </div>
 
 {% if todos %}
-<a href="/wish/{{ wish.id }}/log"
-   class="mt-4 block rounded-2xl border border-stone-200 bg-white py-3 text-center text-sm text-stone-600">
-  記録をまとめて見る{% if has_notes %}（メモあり）{% endif %}
-</a>
+<div class="mt-4 space-y-2">
+  {% if has_notes %}
+  <a href="/wish/{{ wish.id }}/suggest"
+     class="block rounded-2xl border border-sky-200 bg-sky-50 py-3 text-center text-sm font-medium text-sky-700">
+    メモを読んで次の一歩を提案してもらう
+  </a>
+  {% endif %}
+  <a href="/wish/{{ wish.id }}/log"
+     class="block rounded-2xl border border-stone-200 bg-white py-3 text-center text-sm text-stone-600">
+    記録をまとめて見る
+  </a>
+</div>
 {% endif %}
 
 {% if achievement %}

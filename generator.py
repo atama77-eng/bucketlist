@@ -15,7 +15,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 API_KEY = os.getenv("ANTHROPIC_API_KEY")
-MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+
+# 直近のAPI呼び出しでエラーが出たら、その内容をここに残す（/status で確認できる）
+LAST_ERROR: str | None = None
 
 
 # ---------------------------------------------------------------
@@ -56,6 +59,7 @@ def _fallback_plan(title: str, qa: list[tuple[str, str]]) -> tuple[list[str], li
 # ---------------------------------------------------------------
 
 def _call_claude(prompt: str) -> str:
+    global LAST_ERROR
     from anthropic import Anthropic
 
     client = Anthropic(api_key=API_KEY)
@@ -64,7 +68,25 @@ def _call_claude(prompt: str) -> str:
         max_tokens=2000,
         messages=[{"role": "user", "content": prompt}],
     )
+    LAST_ERROR = None
     return message.content[0].text
+
+
+def _record_error(where: str, e: Exception) -> None:
+    global LAST_ERROR
+    LAST_ERROR = f"{where}: {type(e).__name__}: {e}"
+    print(f"[generator] {LAST_ERROR}")
+
+
+def check_api() -> dict:
+    """APIが実際に使える状態か確かめる。/status 画面から呼ばれる。"""
+    if not API_KEY:
+        return {"ok": False, "model": MODEL, "message": "ANTHROPIC_API_KEY が設定されていません"}
+    try:
+        _call_claude("「OK」とだけ返してください。")
+        return {"ok": True, "model": MODEL, "message": "正常に応答しました"}
+    except Exception as e:
+        return {"ok": False, "model": MODEL, "message": f"{type(e).__name__}: {e}"}
 
 
 def _extract_json(text: str) -> dict:
@@ -108,7 +130,7 @@ def generate_questions(title: str) -> list[str]:
         if len(questions) == 3:
             return questions
     except Exception as e:  # ネットワーク断・JSON崩れなど何が起きても止めない
-        print(f"[generator] 質問生成に失敗したためテンプレートを使います: {e}")
+        _record_error("質問生成に失敗したためテンプレートを使います", e)
     return _fallback_questions(title)
 
 
@@ -154,5 +176,73 @@ def generate_plan(title: str, qa: list[tuple[str, str]]) -> tuple[list[str], lis
         if todos and tips:
             return todos, tips
     except Exception as e:
-        print(f"[generator] 計画生成に失敗したためテンプレートを使います: {e}")
+        _record_error("計画生成に失敗したためテンプレートを使います", e)
     return _fallback_plan(title, qa)
+
+
+# ---------------------------------------------------------------
+# メモを読んで「次の一歩」を提案する
+# ---------------------------------------------------------------
+
+def suggest_next_steps(
+    title: str, qa: list[tuple[str, str]], todos: list[dict]
+) -> tuple[list[dict], str | None]:
+    """これまでの進捗とメモを踏まえて、次にやるべきことを提案する。
+
+    戻り値は (提案リスト, エラーメッセージ)。成功時のエラーは None。
+    提案は {"text": 行動, "reason": なぜ今これか} の形。
+    """
+    if not API_KEY:
+        return [], "ANTHROPIC_API_KEY が設定されていないため提案できません"
+
+    done_lines = [f"- [完了] {t['text']}" for t in todos if t["done"]]
+    open_lines = [f"- [未着手] {t['text']}" for t in todos if not t["done"]]
+    note_lines = [
+        f"■ {t['text']}\n{t['note']}" for t in todos if t.get("note")
+    ]
+
+    if not note_lines:
+        return [], "メモがまだありません。ToDoを進めてメモを書くと提案できます"
+
+    qa_text = "\n".join(f"Q: {q}\nA: {a}" for q, a in qa)
+
+    prompt = f"""あなたは人生の目標達成を支援するコーチです。
+
+ユーザーの「死ぬまでにやりたいこと」:
+「{title}」
+
+最初のヒアリング:
+{qa_text}
+
+現在の進捗:
+{chr(10).join(done_lines) or "（完了したものはまだありません）"}
+{chr(10).join(open_lines) or "（未着手のものはありません）"}
+
+ユーザーが進める中で書き残したメモ:
+{chr(10).join(note_lines)}
+
+**メモの内容を最も重視してください。** メモには、当初の計画を立てた時点では
+わからなかった事実や状況の変化が書かれています。それを踏まえて、
+「今のこの人が、次にやるべき具体的な行動」を3つ提案してください。
+
+条件:
+- 既にある未着手ToDoの焼き直しは禁止。メモを読んだからこそ言える提案にすること
+- 「今週中に手をつけられる」粒度にすること
+- reason には「メモのどの記述を根拠にこれを勧めるのか」を必ず含める
+- text は60文字以内、reason は100文字以内
+
+次のJSON形式だけを出力してください:
+{{"suggestions": [{{"text": "行動", "reason": "根拠"}}]}}"""
+
+    try:
+        data = _extract_json(_call_claude(prompt))
+        suggestions = [
+            {"text": str(s["text"]), "reason": str(s.get("reason", ""))}
+            for s in data["suggestions"]
+        ]
+        if suggestions:
+            return suggestions, None
+        return [], "提案が空でした。もう一度試してください"
+    except Exception as e:
+        _record_error("次の一歩の提案に失敗しました", e)
+        return [], f"{type(e).__name__}: {e}"
